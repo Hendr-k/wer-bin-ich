@@ -128,8 +128,9 @@
         </div>
     </div>
     <script>
-        const ws = new WebSocket('wss://wer-bin-ich.onrender.com');
+        const ws = new WebSocket('wss://wer-bin-ich-abc123.onrender.com'); // Ersetze mit deiner Render-URL
         let playerName = localStorage.getItem('playerName') || '';
+        let displayName = localStorage.getItem('displayName') || '';
         let lobbyId = localStorage.getItem('lobbyId') || '';
         let isHost = localStorage.getItem('isHost') === 'true';
         let myCharacter = '';
@@ -145,9 +146,9 @@
         ws.onopen = () => {
             console.log('WebSocket connected');
             if (playerName && lobbyId) {
-                console.log(`Restoring state for ${playerName} in lobby ${lobbyId}, isHost: ${isHost}`);
-                document.getElementById('playerName').value = playerName;
-                ws.send(JSON.stringify({ type: 'restoreState', playerName, lobbyId }));
+                console.log(`Restoring state for ${playerName} (${displayName}) in lobby ${lobbyId}, isHost: ${isHost}`);
+                document.getElementById('playerName').value = displayName;
+                ws.send(JSON.stringify({ type: 'restoreState', playerName, displayName, lobbyId }));
             } else {
                 console.log('No saved state, showing lobby creation');
                 document.getElementById('lobbyCreation').classList.remove('hidden');
@@ -161,9 +162,11 @@
             if (data.type === 'lobbyCreated') {
                 lobbyId = data.lobbyId;
                 playerName = data.playerName;
+                displayName = data.displayName;
                 isHost = data.isHost;
                 localStorage.setItem('lobbyId', lobbyId);
                 localStorage.setItem('playerName', playerName);
+                localStorage.setItem('displayName', displayName);
                 localStorage.setItem('isHost', isHost);
                 players = data.players;
                 revealedPlayers = [];
@@ -184,9 +187,11 @@
             } else if (data.type === 'playerJoined' && data.playerName === playerName) {
                 lobbyId = data.lobbyId;
                 playerName = data.playerName;
+                displayName = data.displayName;
                 isHost = data.isHost;
                 localStorage.setItem('lobbyId', lobbyId);
                 localStorage.setItem('playerName', playerName);
+                localStorage.setItem('displayName', displayName);
                 localStorage.setItem('isHost', isHost);
                 players = data.players;
                 document.getElementById('lobbyCreation').classList.add('hidden');
@@ -201,9 +206,11 @@
                 updateSidebar();
                 if (data.lobbyDeleted) {
                     localStorage.removeItem('playerName');
+                    localStorage.removeItem('displayName');
                     localStorage.removeItem('lobbyId');
                     localStorage.removeItem('isHost');
                     playerName = '';
+                    displayName = '';
                     lobbyId = '';
                     isHost = false;
                     hasAssigned = false;
@@ -225,7 +232,7 @@
                 document.getElementById('game').classList.add('hidden');
                 document.getElementById('assignment').classList.remove('hidden');
                 document.getElementById('sidebar').style.display = 'none';
-                document.getElementById('assignTo').textContent = `Weise einen Charakter zu für: ${data.assignTo || 'Warte auf Zuweisung'}`;
+                document.getElementById('assignTo').textContent = `Weise einen Charakter zu für: ${data.assignToDisplayName || 'Warte auf Zuweisung'}`;
                 document.getElementById('characterInput').classList.remove('hidden');
                 document.getElementById('imageUrlInput').classList.remove('hidden');
                 document.getElementById('submitCharacter').classList.remove('hidden');
@@ -250,18 +257,18 @@
                 document.getElementById('assignment').classList.add('hidden');
                 document.getElementById('game').classList.remove('hidden');
                 document.getElementById('sidebar').style.display = 'block';
-                updateCurrentPlayer(data.currentPlayer, data.currentCharacter || characters[data.currentPlayer] || 'Unbekannt');
+                updateCurrentPlayer(data.currentPlayer, data.currentCharacter, data.currentDisplayName);
                 updateSidebar();
             } else if (data.type === 'nextTurn') {
                 players = data.players;
                 revealedPlayers = data.revealedPlayers ? data.revealedPlayers.map(p => p.trim().toLowerCase()) : [];
                 currentPlayerTurn = data.currentPlayer;
-                updateCurrentPlayer(data.currentPlayer, data.currentCharacter || characters[data.currentPlayer] || 'Unbekannt');
+                updateCurrentPlayer(data.currentPlayer, data.currentCharacter, data.currentDisplayName);
                 updateSidebar();
             } else if (data.type === 'revealCharacter') {
                 revealedPlayers = data.revealedPlayers ? data.revealedPlayers.map(p => p.trim().toLowerCase()) : [];
                 currentPlayerTurn = data.currentPlayer;
-                updateCurrentPlayer(data.currentPlayer, data.character || characters[data.currentPlayer] || 'Unbekannt');
+                updateCurrentPlayer(data.currentPlayer, data.character, data.currentDisplayName);
                 updateSidebar();
             } else if (data.type === 'gameEnded') {
                 players = data.players;
@@ -281,7 +288,8 @@
                     img.className = 'player-image';
                     img.alt = `Bild für ${player}`;
                     li.appendChild(img);
-                    li.appendChild(document.createTextNode(`${player} war ${character}`));
+                    const displayName = players.find(p => p.name === player)?.displayName || player;
+                    li.appendChild(document.createTextNode(`${displayName} war ${character}`));
                     list.appendChild(li);
                 });
                 if (isHost) {
@@ -291,9 +299,11 @@
             } else if (data.type === 'restoreState') {
                 lobbyId = data.lobbyId;
                 playerName = data.playerName;
+                displayName = data.displayName;
                 isHost = data.isHost;
                 localStorage.setItem('lobbyId', lobbyId);
                 localStorage.setItem('playerName', playerName);
+                localStorage.setItem('displayName', displayName);
                 localStorage.setItem('isHost', isHost);
                 players = data.players;
                 revealedPlayers = data.revealedPlayers ? data.revealedPlayers.map(p => p.trim().toLowerCase()) : [];
@@ -317,7 +327,7 @@
                 } else if (data.phase === 'game') {
                     document.getElementById('game').classList.remove('hidden');
                     document.getElementById('sidebar').style.display = 'block';
-                    updateCurrentPlayer(data.currentPlayer, data.currentCharacter || characters[data.currentPlayer] || 'Unbekannt');
+                    updateCurrentPlayer(data.currentPlayer, data.currentCharacter, data.currentDisplayName);
                     updateSidebar();
                 } else if (data.phase === 'ended') {
                     document.getElementById('gameEnded').classList.remove('hidden');
@@ -332,7 +342,8 @@
                         img.className = 'player-image';
                         img.alt = `Bild für ${player}`;
                         li.appendChild(img);
-                        li.appendChild(document.createTextNode(`${player} war ${character}`));
+                        const displayName = players.find(p => p.name === player)?.displayName || player;
+                        li.appendChild(document.createTextNode(`${displayName} war ${character}`));
                         list.appendChild(li);
                     });
                     if (isHost) {
@@ -344,9 +355,11 @@
                 console.error('Error:', data.message);
                 if (data.message === 'Lobby nicht gefunden' || data.message === 'Der Host hat die Lobby verlassen') {
                     localStorage.removeItem('playerName');
-                    localStorage.removeItem('lobbyId');
-                    localStorage.removeItem('isHost');
+                    localStorage.removeItem('displayName');
+                    localStorage.setItem('lobbyId');
+                    localStorage.setItem('isHost');
                     playerName = '';
+                    displayName = '';
                     lobbyId = '';
                     isHost = false;
                     hasAssigned = false;
@@ -371,12 +384,19 @@
         };
 
         ws.onclose = () => {
-            console.log('WebSocket disconnected');
-            alert('Verbindung zum Server unterbrochen. Bitte lade die Seite neu.');
+            console.log('WebSocket disconnected, attempting to reconnect...');
+            setTimeout(() => {
+                const newWs = new WebSocket(ws.url);
+                newWs.onopen = ws.onopen;
+                newWs.onmessage = ws.onmessage;
+                newWs.onerror = ws.onerror;
+                newWs.onclose = ws.onclose;
+                ws = newWs;
+            }, 5000);
         };
 
         function updatePlayersList(players) {
-            document.getElementById('playersList').textContent = `Spieler: ${players.join(', ')}`;
+            document.getElementById('playersList').textContent = `Spieler: ${players.map(p => p.displayName).join(', ')}`;
         }
 
         function updateAssignmentUI() {
@@ -392,7 +412,7 @@
             }
         }
 
-        function updateCurrentPlayer(currentPlayer, currentCharacter) {
+        function updateCurrentPlayer(currentPlayer, currentCharacter, currentDisplayName) {
             const characterImage = document.getElementById('characterImage');
             const revealButton = document.getElementById('revealCharacter');
             const characterDisplay = document.getElementById('characterDisplay');
@@ -418,9 +438,9 @@
                 }
                 console.log(`Own player: Image for ${currentPlayer}: ${characterImage.src}, isRevealed: ${isPlayerRevealed}, characterDisplay: ${characterDisplay.textContent}, isHidden: ${characterDisplay.classList.contains('hidden')}`);
             } else {
-                document.getElementById('currentPlayer').textContent = `Aktueller Spieler: ${currentPlayer}`;
+                document.getElementById('currentPlayer').textContent = `Aktueller Spieler: ${currentDisplayName}`;
                 if (currentCharacter) {
-                    characterDisplay.textContent = `Charakter von ${currentPlayer}: ${currentCharacter}`;
+                    characterDisplay.textContent = `Charakter von ${currentDisplayName}: ${currentCharacter}`;
                     characterDisplay.classList.remove('hidden');
                     characterImage.src = imageUrls[currentPlayer] || noImageAvailable;
                 } else {
@@ -441,36 +461,38 @@
             players.forEach(player => {
                 const li = document.createElement('li');
                 li.className = 'flex items-center mb-2';
-                const isRevealed = revealedPlayers.includes(player.trim().toLowerCase());
-                const character = characters[player] || '***';
-                const displayCharacter = (player === playerName && !isRevealed) ? '***' : character;
-                const imageUrl = (player === playerName && !isRevealed) ? questionMarkImage : (imageUrls[player] || noImageAvailable);
+                const isRevealed = revealedPlayers.includes(player.name.trim().toLowerCase());
+                const character = characters[player.name] || '***';
+                const displayCharacter = (player.name === playerName && !isRevealed) ? '***' : character;
+                const imageUrl = (player.name === playerName && !isRevealed) ? questionMarkImage : (imageUrls[player.name] || noImageAvailable);
                 const statusIcon = isRevealed ? '✅' : '';
                 const img = document.createElement('img');
                 img.src = imageUrl;
                 img.className = 'player-image';
-                img.alt = `Bild für ${player}`;
+                img.alt = `Bild für ${player.displayName}`;
                 li.appendChild(img);
-                li.appendChild(document.createTextNode(`${statusIcon} ${player}: ${displayCharacter}`));
+                li.appendChild(document.createTextNode(`${statusIcon} ${player.displayName}: ${displayCharacter}`));
                 li.className += isRevealed ? ' text-green-500' : ' text-gray-800';
                 list.appendChild(li);
             });
         }
 
         document.getElementById('createLobby').addEventListener('click', () => {
-            playerName = document.getElementById('playerName').value.trim();
-            if (playerName) {
-                ws.send(JSON.stringify({ type: 'createLobby', playerName }));
+            displayName = document.getElementById('playerName').value.trim();
+            playerName = displayName.toLowerCase();
+            if (displayName) {
+                ws.send(JSON.stringify({ type: 'createLobby', playerName, displayName }));
             } else {
                 alert('Bitte gib einen Namen ein.');
             }
         });
 
         document.getElementById('joinLobby').addEventListener('click', () => {
-            playerName = document.getElementById('playerName').value.trim();
+            displayName = document.getElementById('playerName').value.trim();
+            playerName = displayName.toLowerCase();
             lobbyId = prompt('Lobby-ID eingeben:');
-            if (playerName && lobbyId) {
-                ws.send(JSON.stringify({ type: 'joinLobby', playerName, lobbyId }));
+            if (displayName && lobbyId) {
+                ws.send(JSON.stringify({ type: 'joinLobby', playerName, displayName, lobbyId }));
             } else {
                 alert('Bitte gib einen Namen und eine Lobby-ID ein.');
             }
@@ -479,9 +501,11 @@
         document.getElementById('leaveLobby').addEventListener('click', () => {
             ws.send(JSON.stringify({ type: 'leaveLobby', playerName, lobbyId }));
             localStorage.removeItem('playerName');
+            localStorage.removeItem('displayName');
             localStorage.removeItem('lobbyId');
             localStorage.removeItem('isHost');
             playerName = '';
+            displayName = '';
             lobbyId = '';
             isHost = false;
             hasAssigned = false;
